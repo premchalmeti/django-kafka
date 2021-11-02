@@ -1,0 +1,3 @@
+envkafka/
+__pycache__/
+*.pyc
