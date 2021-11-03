@@ -1,6 +1,6 @@
 from typing import Dict, Type
-import constants
-from producers import BaseProducer, LoginProducer
+from libs.kafka import constants
+from libs.kafka.producers import BaseProducer, LoginProducer
 
 
 class EventFactory:

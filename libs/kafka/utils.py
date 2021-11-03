@@ -14,6 +14,12 @@ def setup_django():
 
 
 def produce(eventType, data, key=None):
-    from event_factory import EventFactory
+    from libs.kafka.event_factory import EventFactory
     producer = EventFactory.get_producer(eventType)
     producer.produce(key=key, data=data)
+
+
+def consume(eventType):
+    from libs.kafka.consumer_factory import ConsumerFactory
+    consumer = ConsumerFactory.get_consumer(eventType)
+    consumer.consume()
