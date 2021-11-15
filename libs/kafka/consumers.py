@@ -1,9 +1,7 @@
 import io
 import json
-from abc import ABC
+from abc import ABC, abstractmethod
 
-from libs.kafka import constants
-from django.conf import settings
 import avro
 import avro.io
 import avro.datafile
@@ -11,18 +9,32 @@ import avro.ipc
 import avro.schema
 from confluent_kafka import Consumer
 
+from libs.kafka import utils
+
 
 class BaseConsumer(ABC):
-    TOPIC = None
-    SCHEMA = None
-    WRITER = None
+    @abstractmethod
+    def deserialize_value(self, v):
+        pass
+
+    @abstractmethod
+    def deserialize_key(self, k):
+        pass
+
+    @abstractmethod
+    def consume(self):
+        pass
+
+
+class GenericEventConsumer(BaseConsumer):
     kafka = Consumer({
         'bootstrap.servers': 'localhost:9092',
         'group.id': 'mygroup',
         'auto.offset.reset': 'earliest'
     })
 
-    def __init__(self):
+    def __init__(self, event_type: str):
+        self.topic = utils.get_topic(event_type)
         self.kafka.subscribe([self.TOPIC])
 
     def deserialize_value(self, v):
@@ -47,7 +59,6 @@ class BaseConsumer(ABC):
 
 
 class LoginConsumer(BaseConsumer):
-    TOPIC = constants.LOGIN_TOPIC
     SCHEMA = avro.schema.parse(json.dumps({
         "namespace": "users.login",
         "type": "record",

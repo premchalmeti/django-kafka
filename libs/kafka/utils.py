@@ -1,3 +1,10 @@
+from typing import Union
+
+from logging import getLogger
+from django.conf import settings
+
+from libs.kafka import constants
+
 
 def setup_django():
     import os, sys
@@ -13,13 +20,32 @@ def setup_django():
     django.setup()
 
 
-def produce(eventType, data, key=None):
-    from libs.kafka.event_factory import EventFactory
-    producer = EventFactory.get_producer(eventType)
-    producer.produce(key=key, data=data)
+def get_topic(event_type: str) -> str:
+    return constants.EVENT_TOPIC_MAPPING.get(event_type)
 
 
-def consume(eventType):
-    from libs.kafka.consumer_factory import ConsumerFactory
-    consumer = ConsumerFactory.get_consumer(eventType)
-    consumer.consume()
+def produce(event_type: str, data: Union[list, dict], key=None):
+    from libs.kafka.factory import ProducerFactory
+    try:
+        producer = ProducerFactory.get_producer(event_type)
+        producer.produce(key=key, data=data)
+    except Exception:
+        getLogger(__name__).exception(
+            f"Kafka produce failed for {event_type}", exc_info=True
+        )
+
+
+def consume(event_type: str):
+    from libs.kafka.factory import ConsumerFactory
+    try:
+        consumer = ConsumerFactory.get_consumer(event_type)
+        consumer.consume()
+    except Exception:
+        getLogger(__name__).exception(
+            f"Kafka produce failed for {event_type}", exc_info=True
+        )
+
+
+def raise_if_kafka_disabled():
+    if not settings.KAFKA_ENABLED:
+        raise EnvironmentError("KAFKA_RUN is disabled")

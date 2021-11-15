@@ -1,8 +1,7 @@
 import io
 import json
-from abc import ABC
+from abc import ABC, abstractmethod
 
-from libs.kafka import constants
 from django.conf import settings
 import avro
 import avro.io
@@ -11,23 +10,37 @@ import avro.ipc
 import avro.schema
 from confluent_kafka import Producer
 
+from libs.kafka import utils
+
 
 class BaseProducer(ABC):
-    TOPIC = None
-    SCHEMA = None
-    WRITER = None
-    kafka = Producer(settings.KAFKA_CONFIG)
-
-    def __init__(self):
+    @abstractmethod
+    def _serialize_value(self, v):
         pass
 
-    def serialize_value(self, v):
+    @abstractmethod
+    def _serialize_key(self, k):
+        pass
+
+    @abstractmethod
+    def produce(self):
+        pass
+
+
+class GenericEventProducer(BaseProducer):
+    kafka = Producer(settings.KAFKA_CONFIG)
+
+    def __init__(self, event_type: str):
+        self.event_type = event_type
+        self.topic = utils.get_topic(event_type)
+
+    def _serialize_value(self, v):
         return json.dumps(v)
 
-    def serialize_key(self, k):
+    def _serialize_key(self, k):
         return k
 
-    def delivered_callback(self, err, msg):
+    def _delivered_callback(self, err, msg):
         if err is not None:
             print(f"Message delivery failed {err}")
         else:
@@ -36,16 +49,15 @@ class BaseProducer(ABC):
     def produce(self, data, key=None):
         self.kafka.poll(0)
         self.kafka.produce(
-            self.TOPIC,
-            key=self.serialize_key(key), 
-            value=self.serialize_value(data),
-            callback=self.delivered_callback
+            self.topic,
+            key=self._serialize_key(key), 
+            value=self._serialize_value(data),
+            callback=self._delivered_callback
         )
         self.kafka.flush()
 
 
-class LoginProducer(BaseProducer):
-    TOPIC = constants.LOGIN_TOPIC
+class LoginProducer(GenericEventProducer):
     SCHEMA = avro.schema.parse(json.dumps({
         "namespace": "users.login",
         "type": "record",
@@ -60,36 +72,10 @@ class LoginProducer(BaseProducer):
 
     avro.io.DatumWriter(SCHEMA)
 
-    def serialize_value(self, v):
+    def _serialize_value(self, v):
         bytes_writer = io.BytesIO()
         encoder = avro.io.BinaryEncoder(bytes_writer)
         self.WRITER.write(json.loads(v), encoder)
         encoded_value = bytes_writer.getvalue()
         bytes_writer.flush()
         return encoded_value
-
-
-class NewBillBoardProducer(BaseProducer):
-    TOPIC = constants.LOGIN_TOPIC
-    SCHEMA = avro.schema.parse(json.dumps({
-        "namespace": "users.login",
-        "type": "record",
-        "name": "Login",
-        "fields": [{
-            "name": "username",
-            "type": ["string", "null"],
-            "default": "null"
-        }]
-    }))
-    WRITER = avro.io.DatumWriter(SCHEMA)
-
-    avro.io.DatumWriter(SCHEMA)
-
-    def serialize_value(self, v):
-        bytes_writer = io.BytesIO()
-        encoder = avro.io.BinaryEncoder(bytes_writer)
-        self.WRITER.write(json.loads(v), encoder)
-        encoded_value = bytes_writer.getvalue()
-        bytes_writer.flush()
-        return encoded_value
-

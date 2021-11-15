@@ -1,0 +1,3 @@
+- write decorator to register producer and consumer by event type
+- add tests to test producers and consumers
+- 
